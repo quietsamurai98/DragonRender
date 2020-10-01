@@ -12,11 +12,11 @@ def tick(args)
   unless args.state.model
     # Load from an arbitrary `.off` file.
     args.state.model = Object3D.new({path: 'data/lowpoly_f117.off'})
-    # Tilt it a little so horizontal edge loops don't just look like horizontal lines
-    # Create a rotation matrix ahead of time, so we don't need to do all the math each tick.
-    args.state.spin_mtx = rotate3D(0.00, 0.00, 0.00)
+    # Holds the current orientation of the model
     args.state.orient_mtx = rotate3D(0.00, 0.00, 0.00)
+    # Holds the inverse of the current orientation of the model
     args.state.inv_orient_mtx = rotate3D(0.00, 0.00, 0.00)
+    # Rotations to apply when certain buttons are pressed
     args.state.ctrl_mtx = {
         d: rotate3D(0.00, 0.00, 0.01),
         a: rotate3D(0.00, 0.00, -0.01),
@@ -25,30 +25,37 @@ def tick(args)
         w: rotate3D(0.01, 0.00, 0.00),
         s: rotate3D(-0.01, 0.00, 0.00),
     }
-    # Draw everything
+    # Draw everything 4 times, for thicker lines
     args.outputs.static_lines << args.state.model.edges.map(&:dupe_off)
   end
+  # Black backgrounds look cooler
   args.outputs.background_color = [0, 0, 0]
-  # Animate the spinning
-  # args.state.model.fast_3x3_transform!(args.state.spin_mtx)
+
+  # See if we need to rotate.
   rot_flag = false
   [:d, :a, :w, :s, :q, :e].each do |key|
     rot_flag |= args.inputs.keyboard.key_held.send(key)
   end
+
   if rot_flag
+    # Update the orientation matrix
     [:d, :a, :w, :s, :q, :e].each do |key|
       next unless args.inputs.keyboard.key_held.send(key)
       args.state.orient_mtx = MatrixMath::dot(args.state.orient_mtx, args.state.ctrl_mtx[key])
     end
+    # Calculate the delta rotation matrix of the model by multiplying the updated orientation mtx by its non-updated inverse
     rot = MatrixMath::dot(args.state.orient_mtx, args.state.inv_orient_mtx)
+    # Update the inverse orientation matrix
     [:d, :a, :w, :s, :q, :e].each do |key|
       next unless args.inputs.keyboard.key_held.send(key)
       args.state.inv_orient_mtx = MatrixMath::dot(args.state.ctrl_mtx[key].transpose, args.state.inv_orient_mtx)
     end
+    # Rotate the model
     args.state.model.fast_3x3_transform!(rot)
+    # Sort the lines by z index so we get proper z-buffering. TODO: do this in a less dumb way.
     args.outputs.static_lines.sort!
   end
-  #args.outputs.debug << args.gtk.framerate_diagnostics_primitives
+  args.outputs.debug << args.gtk.framerate_diagnostics_primitives
 end
 
 module MatrixMath

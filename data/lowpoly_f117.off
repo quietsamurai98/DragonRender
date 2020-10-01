@@ -1,5 +1,12 @@
 OFF
 84 73 0
+
+# F117 Nighthawk by sharpclifton
+# Published on July 27, 2016
+# www.thingiverse.com/thing:1691503
+# Modified to reduce vertex/edge/face count, and to use .off file format.
+# Creative Commons - Attribution
+
 -0.0008613765239716 -0.8292289972305298 -0.0270575881004333
 0.0507810115814209 -0.7176021337509155 -0.0378316231071949
 -0.0003826320171356 -0.6261399984359741 0.0318300351500511
