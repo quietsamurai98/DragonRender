@@ -11,18 +11,44 @@ require 'lib/utils.rb'
 def tick(args)
   unless args.state.model
     # Load from an arbitrary `.off` file.
-    args.state.model = Object3D.new({path: 'data/lowpoly_teapot.off'})
+    args.state.model = Object3D.new({path: 'data/lowpoly_f117.off'})
     # Tilt it a little so horizontal edge loops don't just look like horizontal lines
-    rot = rotate3D(0.2, 0.0, 0.0)
-    args.state.model.fast_3x3_transform!(rot)
     # Create a rotation matrix ahead of time, so we don't need to do all the math each tick.
-    args.state.spin_mtx = rotate3D(0.00, 0.00, 0.01)
+    args.state.spin_mtx = rotate3D(0.00, 0.00, 0.00)
+    args.state.orient_mtx = rotate3D(0.00, 0.00, 0.00)
+    args.state.inv_orient_mtx = rotate3D(0.00, 0.00, 0.00)
+    args.state.ctrl_mtx = {
+        d: rotate3D(0.00, 0.00, 0.01),
+        a: rotate3D(0.00, 0.00, -0.01),
+        e: rotate3D(0.00, 0.02, 0.00),
+        q: rotate3D(0.00, -0.02, 0.00),
+        w: rotate3D(0.01, 0.00, 0.00),
+        s: rotate3D(-0.01, 0.00, 0.00),
+    }
     # Draw everything
-    args.outputs.static_lines << args.state.model.edges
+    args.outputs.static_lines << args.state.model.edges.map(&:dupe_off)
   end
+  args.outputs.background_color = [0, 0, 0]
   # Animate the spinning
-  args.state.model.fast_3x3_transform!(args.state.spin_mtx)
-  args.outputs.debug << args.gtk.framerate_diagnostics_primitives
+  # args.state.model.fast_3x3_transform!(args.state.spin_mtx)
+  rot_flag = false
+  [:d, :a, :w, :s, :q, :e].each do |key|
+    rot_flag |= args.inputs.keyboard.key_held.send(key)
+  end
+  if rot_flag
+    [:d, :a, :w, :s, :q, :e].each do |key|
+      next unless args.inputs.keyboard.key_held.send(key)
+      args.state.orient_mtx = MatrixMath::dot(args.state.orient_mtx, args.state.ctrl_mtx[key])
+    end
+    rot = MatrixMath::dot(args.state.orient_mtx, args.state.inv_orient_mtx)
+    [:d, :a, :w, :s, :q, :e].each do |key|
+      next unless args.inputs.keyboard.key_held.send(key)
+      args.state.inv_orient_mtx = MatrixMath::dot(args.state.ctrl_mtx[key].transpose, args.state.inv_orient_mtx)
+    end
+    args.state.model.fast_3x3_transform!(rot)
+    args.outputs.static_lines.sort!
+  end
+  #args.outputs.debug << args.gtk.framerate_diagnostics_primitives
 end
 
 module MatrixMath
@@ -163,25 +189,36 @@ class Face
 end
 
 class Edge
-  attr_accessor :a, :r, :g, :b
+  attr_accessor :r, :g, :b, :a
   attr_reader :point_a, :point_b
   # @param [Vertex] point_a
   # @param [Vertex] point_b
   # @return [Edge]
-  def initialize(point_a, point_b)
+  def initialize(point_a, point_b, x_off = 0, y_off = 0)
     # @type [Vertex]
     @point_a = point_a
     # @type [Vertex]
     @point_b = point_b
     @a       = 255
-    @r       = 0
+    @r       = 255
     @g       = 0
     @b       = 0
+    @x_off   = x_off
+    @y_off   = y_off
   end
 
   # @return [Edge]
   def sorted
     @point_a.id < @point_b.id ? self : Edge.new(@point_b, @point_a)
+  end
+
+  def dupe_off
+    [
+        self,
+        Edge.new(@point_a, @point_b, 0, 1),
+        Edge.new(@point_a, @point_b, 1, 0),
+        Edge.new(@point_a, @point_b, 1, 1),
+    ]
   end
 
   # @return [Hash]
@@ -202,20 +239,38 @@ class Edge
     serialize.to_s
   end
 
+  Scale = 150
+
   def x
-    @point_a.x * 300 + 640
+    @point_a.x * (1 + 1 * (@point_a.y + 1)) * Edge::Scale + 640 + @x_off
   end
 
   def y
-    @point_a.z * 300 + 360
+    @point_a.z * (1 + 1 * (@point_a.y + 1)) * Edge::Scale + 360 + @y_off
   end
 
   def x2
-    @point_b.x * 300 + 640
+    @point_b.x * (1 + 1 * (@point_b.y + 1)) * Edge::Scale + 640 + @x_off
   end
 
   def y2
-    @point_b.z * 300 + 360
+    @point_b.z * (1 + 1 * (@point_b.y + 1)) * Edge::Scale + 360 + @y_off
+  end
+
+  def g
+    ((@point_a.y+@point_b.y)*0.25 + 0.5) * 255
+  end
+
+  def r
+    255 - ((@point_a.y+@point_b.y)*0.25 + 0.5) * 255
+  end
+
+  def z
+    (@point_a.y+@point_b.y) * 0.5
+  end
+
+  def <=> rhs
+    z - rhs.z
   end
 
   def primitive_marker
