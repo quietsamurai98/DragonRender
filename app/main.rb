@@ -11,7 +11,9 @@ require 'lib/utils.rb'
 def tick(args)
   unless args.state.model
     # Load from an arbitrary `.off` file.
-    args.state.model = Object3D.new({path: 'data/tri_paperplane.off'})
+    #args.state.model = Object3D.new({path: 'data/tri_paperplane.off'})
+    args.state.model = Object3D.new({path: 'data/triangle_teapot.off'})
+    args.state.model.fast_3x3_transform!(rotate3D(0,0,-Math::PI/2))
     # Holds the current orientation of the model
     args.state.orient_mtx = rotate3D(0.00, 0.00, 0.00)
     # Holds the inverse of the current orientation of the model
@@ -26,10 +28,11 @@ def tick(args)
         s: rotate3D(-0.01, 0.00, 0.00),
     }
     # Draw everything 4 times, for thicker lines
-    args.outputs.static_lines << args.state.model.edges.map(&:dupe_off)
+    # args.outputs.static_lines << args.state.model.edges.map(&:dupe_off)
   end
   # Black backgrounds look cooler
   args.outputs.background_color = [0, 0, 0]
+  args.outputs.lines << render3D(args.state.model)
 
   # See if we need to rotate.
   rot_flag = false
@@ -58,10 +61,84 @@ def tick(args)
   args.state.model.fast_3x3_transform!(args.state.inv_orient_mtx)
 
   args.state.model.fast_3x3_transform!(args.state.orient_mtx)
-  args.outputs.debug << args.gtk.framerate_diagnostics_primitives
+  args.outputs.primitives << args.gtk.framerate_diagnostics_primitives
 end
 
+# @param [Object3D] model
+# @return [Array]
+def render3D(model)
+  model.faces.sort_by { |face| (face.verts[0].y + face.verts[1].y + face.verts[2].y) / 3 }.flat_map do
+    # @type face [Face]
+  |face|
+    face_to_lines(face)
+  end
+end
 
+def fill_bottom_flat_triangle(v1, v2, v3, r, g, b)
+  out       = []
+  invslope1 = (v2.x - v1.x) / (v2.y - v1.y)
+  invslope2 = (v3.x - v1.x) / (v3.y - v1.y)
+  invslope1, invslope2 = invslope2, invslope1 if invslope2 < invslope1
+  invslope3 = -(v1.z - v2.z) / (v1.y - v2.y)
+  start_z   = v1.z
+  curx1     = v1.x
+  curx2     = v1.x
+  start_y   = v1.y.round
+  final_y   = v2.y.round
+  min_x = v1.x.lesser(v2.x).lesser(v3.x)
+  max_x = v1.x.greater(v2.x).greater(v3.x)
+  while start_y <= final_y
+    out << {x: curx1.clamp(min_x, max_x), y: start_y, x2: curx2.clamp(min_x, max_x), y2: start_y, r: r, g: g, b: b, z: start_z}
+    curx1   += invslope1
+    curx2   += invslope2
+    start_y += 1
+    start_z += invslope3
+  end
+  out
+end
+
+def fill_top_flat_triangle(v1, v2, v3, r, g, b)
+  out       = []
+  invslope1 = -(v3.x - v1.x) / (v3.y - v1.y)
+  invslope2 = -(v3.x - v2.x) / (v3.y - v2.y)
+  invslope1, invslope2 = invslope2, invslope1 if invslope2 < invslope1
+  invslope3 = -(v1.z - v2.z) / (v1.y - v2.y)
+  curx1     = v3.x
+  curx2     = v3.x
+  start_z   = v3.z
+  start_y   = v3.y.round
+  final_y   = v2.y.round
+  min_x = v1.x.lesser(v2.x).lesser(v3.x)
+  max_x = v1.x.greater(v2.x).greater(v3.x)
+  while start_y >= final_y
+    out << {x: curx1.clamp(min_x, max_x), y: start_y, x2: curx2.clamp(min_x, max_x), y2: start_y, h: 1, r: r, g: g, b: b, z: start_z}
+    curx1   += invslope1
+    curx2   += invslope2
+    start_y -= 1
+    start_z += invslope3
+  end
+  out
+end
+
+# @param [Face] face
+# @param
+def face_to_lines(face)
+  Kernel.raise "non tris not supported" if face.verts.length != 3
+  v1, v2, v3 = face.verts.map { |vert| [vert.render_x, vert.render_y, vert.y] }.sort_by { |vert| vert.y }
+  cross = MatrixMath::cross((face.verts[1] - face.verts[0]).row_vector, (face.verts[2] - face.verts[0]).row_vector)
+  r          = 254 * MatrixMath::dot([MatrixMath::normalize(cross)],[[0.0, 1.0, 0.0]].transpose)[0][0].abs + 1
+  g          = b = 0
+  out = face.outlines.map{|edge| {x:edge.x,y:edge.y,x2:edge.x2,y2:edge.y2, r: r, g: g, b: b, z:edge.z}}
+  if v2.y.round == v3.y.round
+    out += fill_bottom_flat_triangle(v1, v2, v3, r, g, b)
+  elsif v1.y.round == v2.y.round
+    out += fill_top_flat_triangle(v1, v2, v3, r, g, b)
+  else
+    v4  = [(v1.x + ((v2.y - v1.y) / (v3.y - v1.y)) * (v3.x - v1.x)), v2.y, (v1.z + ((v2.y - v1.y) / (v3.y - v1.y)) * (v3.z - v1.z))]
+    out += fill_bottom_flat_triangle(v1, v2, v4, r, g, b) + fill_top_flat_triangle(v2, v4, v3, r, g, b)
+  end
+  out.sort_by{|l| -l.z}
+end
 
 module MatrixMath
   # @param [Array<Array<Float>>] a
@@ -93,13 +170,19 @@ module MatrixMath
   # @param [Array<Float>] b
   # @return [Float]
   def MatrixMath::sin(a, b)
-    MatrixMath::magnitude(MatrixMath::cross(a, b)) / (MatrixMath::magnitude(a) * MatrixMath::magnitude(b))
+    MatrixMath::magnitude(MatrixMath::cross(a, b)) / ((MatrixMath::magnitude(a) * MatrixMath::magnitude(b)))
   end
 
   # @param [Array<Float>] a
   # @return [Float]
   def MatrixMath::magnitude(a)
     Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
+  end
+  # @param [Array<Float>] a
+  # @return [Array<Float>]
+  def MatrixMath::normalize(a)
+    mag = MatrixMath.magnitude(a)
+    a.map{|x|x/mag}
   end
 end
 
@@ -241,7 +324,7 @@ end
 
 class Face
 
-  attr_reader :verts, :edges
+  attr_reader :verts, :edges, :outlines
   # @param [Array<String>] data
   # @param [Array<Vertex>] verts
   # @return [Face]
@@ -253,6 +336,7 @@ class Face
     @edges = []
     (0...vert_count).each { |i| @edges[i] = Edge.new(verts[vert_ids[i - 1]], verts[vert_ids[i]]) }
     @edges.rotate!(1)
+    @outlines = @edges.flat_map{|e|e.dupe_off_thick}
     self
   end
 
@@ -305,6 +389,14 @@ class Edge
         Edge.new(@point_a, @point_b, 0, 1),
         Edge.new(@point_a, @point_b, 1, 0),
         Edge.new(@point_a, @point_b, 1, 1),
+    ]
+  end
+  def dupe_off_thick
+    [
+        Edge.new(@point_a, @point_b, 1, 0),
+        Edge.new(@point_a, @point_b, -1, 0),
+        Edge.new(@point_a, @point_b, 0, 1),
+        Edge.new(@point_a, @point_b, 0, -1),
     ]
   end
 

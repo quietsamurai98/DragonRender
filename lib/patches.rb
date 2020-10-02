@@ -154,7 +154,7 @@ module GTK
     module FramerateDiagnostics
       def framerate_diagnostics_primitives
         lines = []
-        #lines.push("solids:     #{@args.outputs.solids.length}, #{@args.outputs.static_solids.length}") unless @args.outputs.solids.length+@args.outputs.static_solids.length == 0
+        lines.push("solids:     #{@args.outputs.solids.length}, #{@args.outputs.static_solids.length}") unless @args.outputs.solids.length+@args.outputs.static_solids.length == 0
         #lines.push("sprites:    #{@args.outputs.sprites.length}, #{@args.outputs.static_sprites.length}") unless @args.outputs.sprites.length+@args.outputs.static_sprites.length == 0
         #lines.push("primitives: #{@args.outputs.primitives.length}, #{@args.outputs.static_primitives.length}") unless @args.outputs.primitives.length+@args.outputs.static_primitives.length == 0
         #lines.push("labels:     #{@args.outputs.labels.length}, #{@args.outputs.static_labels.length}") unless @args.outputs.labels.length+@args.outputs.static_labels.length == 0
@@ -233,5 +233,10 @@ class Array
   include XYPairMath
   def z
     w
+  end
+end
+class Hash
+  def z
+    self[:z]
   end
 end
