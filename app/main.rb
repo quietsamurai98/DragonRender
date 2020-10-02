@@ -11,7 +11,7 @@ require 'lib/utils.rb'
 def tick(args)
   unless args.state.model
     # Load from an arbitrary `.off` file.
-    args.state.model = Object3D.new({path: 'data/lowpoly_f117.off'})
+    args.state.model = Object3D.new({path: 'data/tri_paperplane.off'})
     # Holds the current orientation of the model
     args.state.orient_mtx = rotate3D(0.00, 0.00, 0.00)
     # Holds the inverse of the current orientation of the model
@@ -44,19 +44,24 @@ def tick(args)
       args.state.orient_mtx = MatrixMath::dot(args.state.orient_mtx, args.state.ctrl_mtx[key])
     end
     # Calculate the delta rotation matrix of the model by multiplying the updated orientation mtx by its non-updated inverse
-    rot = MatrixMath::dot(args.state.orient_mtx, args.state.inv_orient_mtx)
+    delta = MatrixMath::dot(args.state.orient_mtx, args.state.inv_orient_mtx)
     # Update the inverse orientation matrix
     [:d, :a, :w, :s, :q, :e].each do |key|
       next unless args.inputs.keyboard.key_held.send(key)
       args.state.inv_orient_mtx = MatrixMath::dot(args.state.ctrl_mtx[key].transpose, args.state.inv_orient_mtx)
     end
     # Rotate the model
-    args.state.model.fast_3x3_transform!(rot)
+    args.state.model.fast_3x3_transform!(delta)
     # Sort the lines by z index so we get proper z-buffering. TODO: do this in a less dumb way.
     args.outputs.static_lines.sort!
   end
+  args.state.model.fast_3x3_transform!(args.state.inv_orient_mtx)
+
+  args.state.model.fast_3x3_transform!(args.state.orient_mtx)
   args.outputs.debug << args.gtk.framerate_diagnostics_primitives
 end
+
+
 
 module MatrixMath
   # @param [Array<Array<Float>>] a
@@ -75,6 +80,26 @@ module MatrixMath
         sum
       end
     end
+  end
+
+  # @param [Array<Float>] a
+  # @param [Array<Float>] b
+  # @return [Array<Float>]
+  def MatrixMath::cross(a, b)
+    [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+  end
+
+  # @param [Array<Float>] a
+  # @param [Array<Float>] b
+  # @return [Float]
+  def MatrixMath::sin(a, b)
+    MatrixMath::magnitude(MatrixMath::cross(a, b)) / (MatrixMath::magnitude(a) * MatrixMath::magnitude(b))
+  end
+
+  # @param [Array<Float>] a
+  # @return [Float]
+  def MatrixMath::magnitude(a)
+    Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
   end
 end
 
@@ -104,17 +129,25 @@ def rotate3D(theta_x = 0.1, theta_y = 0.1, theta_z = 0.1)
   MatrixMath.dot(MatrixMath.dot(rot_x, rot_y), rot_z)
 end
 
+Scale = 150
+
 class Vertex
 
-  attr_accessor :x, :y, :z
+  attr_reader :x, :y, :z
   attr_accessor :id
   # @param [Array<String>] data
   # @param [Integer] id
+  # @param [TrueClass, FalseClass] data_str
   # @return [Vertex]
-  def initialize(data, id)
-    @x  = data[0].to_f
-    @y  = data[1].to_f
-    @z  = data[2].to_f
+  def initialize(data, id, data_str = true)
+    @x = data[0]
+    @y = data[1]
+    @z = data[2]
+    if data_str
+      @x = @x.to_f
+      @y = @y.to_f
+      @z = @z.to_f
+    end
     @id = id
     self
   end
@@ -129,6 +162,15 @@ class Vertex
         [@x],
         [@y],
         [@z]
+    ]
+  end
+
+  # @return [Array<Float>]
+  def row_vector
+    [
+        @x,
+        @y,
+        @z
     ]
   end
 
@@ -156,6 +198,44 @@ class Vertex
 
   def to_s
     serialize.to_s
+  end
+
+  def render_x
+    @x * (10 / (5 - @y)) * Scale + 640
+  end
+
+  def render_y
+    @z * (10 / (5 - @y)) * Scale + 360
+  end
+
+  # @param [Integer] x
+  # @return [Integer]
+  def x=(x)
+    @x = x
+  end
+
+  # @param [Integer] y
+  # @return [Integer]
+  def y=(y)
+    @y = y
+  end
+
+  # @param [Integer] z
+  # @return [Integer]
+  def z=(z)
+    @z = z
+  end
+
+  # @return [Vertex]
+  # @param [Vertex] other
+  def -(other)
+    Vertex.new([@x - other.x, @y - other.y, @z - other.z], -1, false)
+  end
+
+  # @return [Vertex]
+  # @param [Vertex] other
+  def +(other)
+    Vertex.new([@x + other.x, @y + other.y, @z + other.z], -1, false)
   end
 end
 
@@ -246,34 +326,36 @@ class Edge
     serialize.to_s
   end
 
-  Scale = 150
-
   def x
-    @point_a.x * (1 + 1 * (@point_a.y + 1)) * Edge::Scale + 640 + @x_off
+    @point_a.render_x + @x_off
   end
 
   def y
-    @point_a.z * (1 + 1 * (@point_a.y + 1)) * Edge::Scale + 360 + @y_off
+    @point_a.render_y + @y_off
   end
 
   def x2
-    @point_b.x * (1 + 1 * (@point_b.y + 1)) * Edge::Scale + 640 + @x_off
+    @point_b.render_x + @x_off
   end
 
   def y2
-    @point_b.z * (1 + 1 * (@point_b.y + 1)) * Edge::Scale + 360 + @y_off
-  end
-
-  def g
-    ((@point_a.y+@point_b.y)*0.25 + 0.5) * 255
+    @point_b.render_y + @y_off
   end
 
   def r
-    255 - ((@point_a.y+@point_b.y)*0.25 + 0.5) * 255
+    200 * MatrixMath::sin((@point_a - @point_b).row_vector, [0.0, 1.0, 0.0]).abs + 55
+  end
+
+  def g
+    0 #200 * MatrixMath::sin((@point_a-@point_b).row_vector,[0.0,1.0,0.0]).abs + 55
+  end
+
+  def b
+    0 #200 * MatrixMath::sin((@point_a-@point_b).row_vector,[0.0,1.0,0.0]).abs + 55
   end
 
   def z
-    (@point_a.y+@point_b.y) * 0.5
+    (@point_a.y + @point_b.y) * 0.5
   end
 
   def <=> rhs

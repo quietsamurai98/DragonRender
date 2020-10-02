@@ -169,8 +169,8 @@ module GTK
                 y: 5.from_top,
                 text: "More Info via DragonRuby Console: $gtk.framerate_diagnostics",
                 r: 255,
-                g: 255,
-                b: 255,
+                g: 0,
+                b: 0,
                 size_enum: -2
             }.label,
             {
@@ -178,8 +178,8 @@ module GTK
                 y: 20.from_top,
                 text: "FPS: %.2f" % args.gtk.current_framerate,
                 r: 255,
-                g: 255,
-                b: 255,
+                g: 0,
+                b: 0,
                 size_enum: -2
             }.label,
             {
@@ -187,8 +187,8 @@ module GTK
                 y: 35.from_top,
                 text: "Draw Calls: #{$perf_counter_outputs_push_count}",
                 r: 255,
-                g: 255,
-                b: 255,
+                g: 0,
+                b: 0,
                 size_enum: -2
             }.label,
             {
@@ -196,8 +196,8 @@ module GTK
                 y: 50.from_top,
                 text: "Array Primitives: #{$perf_counter_primitive_is_array}",
                 r: 255,
-                g: 255,
-                b: 255,
+                g: 0,
+                b: 0,
                 size_enum: -2
             }.label,
             {
@@ -205,8 +205,8 @@ module GTK
                 y: 65.from_top,
                 text: "Mouse: #{@args.inputs.mouse.point}",
                 r: 255,
-                g: 255,
-                b: 255,
+                g: 0,
+                b: 0,
                 size_enum: -2
             }.label,
         ]
@@ -216,8 +216,8 @@ module GTK
               y: out[-1].y - 15,
               text: line,
               r: 255,
-              g: 255,
-              b: 255,
+              g: 0,
+              b: 0,
               size_enum: -2
           }.label)
           out[0].h += 15
@@ -231,4 +231,7 @@ end
 
 class Array
   include XYPairMath
+  def z
+    w
+  end
 end
