@@ -156,7 +156,7 @@ module GTK
         lines = []
         lines.push("solids:     #{@args.outputs.solids.length}, #{@args.outputs.static_solids.length}") unless @args.outputs.solids.length+@args.outputs.static_solids.length == 0
         #lines.push("sprites:    #{@args.outputs.sprites.length}, #{@args.outputs.static_sprites.length}") unless @args.outputs.sprites.length+@args.outputs.static_sprites.length == 0
-        #lines.push("primitives: #{@args.outputs.primitives.length}, #{@args.outputs.static_primitives.length}") unless @args.outputs.primitives.length+@args.outputs.static_primitives.length == 0
+        lines.push("primitives: #{@args.outputs.primitives.length}, #{@args.outputs.static_primitives.length}") unless @args.outputs.primitives.length+@args.outputs.static_primitives.length == 0
         #lines.push("labels:     #{@args.outputs.labels.length}, #{@args.outputs.static_labels.length}") unless @args.outputs.labels.length+@args.outputs.static_labels.length == 0
         lines.push("lines:      #{@args.outputs.lines.length}, #{@args.outputs.static_lines.length}") unless @args.outputs.lines.length+@args.outputs.static_lines.length == 0
         #lines.push("borders:    #{@args.outputs.borders.length}, #{@args.outputs.static_borders.length}") unless @args.outputs.borders.length+@args.outputs.static_borders.length == 0

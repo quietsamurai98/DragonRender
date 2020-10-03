@@ -19,3 +19,64 @@ module Utils
     [(r*255).to_i, (g*255).to_i, (b*255).to_i]
   end
 end
+
+module MatrixMath
+  # @param [Array<Array<Float>>] a
+  # @param [Array<Array<Float>>] b
+  # @return [Array<Array<Float>>]
+  def MatrixMath::dot(a, b)
+    is = (0...a.length)
+    js = (0...b[0].length)
+    ks = (0...b.length)
+    is.map do |i|
+      js.map do |j|
+        sum = 0
+        ks.each do |k|
+          sum += a[i][k] * b[k][j]
+        end
+        sum
+      end
+    end
+  end
+end
+
+module VectorMath
+  # @param [Array<Float>] a
+  # @param [Array<Float>] b
+  # @return [Array<Float>]
+  def VectorMath::cross3(a, b)
+    [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+  end
+
+  # @param [Array<Float>] a
+  # @param [Array<Float>] b
+  # @return [Float]
+  def VectorMath::sin(a, b)
+    VectorMath::magnitude(VectorMath::cross3(a, b)) / ((VectorMath::magnitude(a) * VectorMath::magnitude(b)))
+  end
+
+  # @param [Array<Float>] a
+  # @return [Float]
+  def VectorMath::magnitude(a)
+    Math.sqrt(a.map{|x|x*x}.reduce(&:plus))
+  end
+  # @param [Array<Float>] a
+  # @return [Array<Float>]
+  def VectorMath::normalize(a)
+    mag = VectorMath.magnitude(a)
+    a.map{|x|x/mag}
+  end
+  # @param [Array<Float>] a
+  # @param [Float] s
+  # @return [Array<Float>]
+  def VectorMath::scale(a,s)
+    a.map{|x|x*s}
+  end
+
+  # @param [Array<Float>] a
+  # @param [Array<Float>] b
+  # @return [Float]
+  def VectorMath::dot(a,b)
+    (0...a.length).map{|i|a[i]*b[i]}.reduce(&:plus)
+  end
+end
